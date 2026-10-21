@@ -17,8 +17,19 @@
 
 #define FORK_BUFFER_SIZE (128 * 1024)
 
-static __thread char fork_stack[FORK_BUFFER_SIZE] __attribute__((aligned(16)));
-static __thread struct {
+/*
+ * (in libc.so, unused: the loader gives each module of a dynamically
+ * linked process a buffer of its own; thread-local there, each thread of
+ * every such process would carry one)
+ */
+#ifdef WASM_SHARED_LIBC
+#define FORK_TLS
+#else
+#define FORK_TLS __thread
+#endif
+
+static FORK_TLS char fork_stack[FORK_BUFFER_SIZE] __attribute__((aligned(16)));
+static FORK_TLS struct {
 	char *next, *end, *start;
 } fork_buffer;
 
