@@ -56,9 +56,23 @@ void __init_libc(char **envp, char *pn)
 	libc.secure = 1;
 }
 
+#ifdef WASM_SHARED_LIBC
+/*
+ * The libraries' constructors (a shared build: libc.so's included), which
+ * the host's dynamic loader queues as it links them, run here, in the
+ * process, so they can make syscalls; the program's own are crt1's.
+ */
+__attribute__((import_module("dyn"), import_name("next_ctor")))
+void (*__dyn_next_ctor(void))(void);
+#endif
+
 static void libc_start_init(void)
 {
 	_init();
+#ifdef WASM_SHARED_LIBC
+	for (void (*ctor)(void); (ctor = __dyn_next_ctor()); )
+		ctor();
+#endif
 	uintptr_t a = (uintptr_t)&__init_array_start;
 	for (; a<(uintptr_t)&__init_array_end; a+=sizeof(void(*)()))
 		(*(void (**)(void))a)();
