@@ -5,7 +5,7 @@
  * main(void) and main(argc, argv) get __main_void and __main_argc_argv);
  * tombl's LLVM names it __main_argc_argv_envp, which then wins.
  */
-int main(int, char **, char **);
+weak int main(int, char **, char **);
 
 weak int __main_argc_argv_envp(int argc, char **argv, char **envp)
 {
