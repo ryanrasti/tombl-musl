@@ -34,11 +34,12 @@ weak int main(int, char **, char **);
 static int wasm_main(int argc, char **argv, char **envp)
 {
 	__wasm_call_ctors();
+	/* (main(void) also defines a two-argument main: not ours to call) */
 	if (__main_argc_argv)
 		return __main_argc_argv(argc, argv);
-	if (main)
-		return main(argc, argv, envp);
-	return __main_void();
+	if (__main_void)
+		return __main_void();
+	return main(argc, argv, envp);
 }
 
 hidden void _start(void) {
