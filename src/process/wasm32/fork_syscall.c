@@ -8,6 +8,8 @@
  * then where it starts, for the host to reset next to. Only programs that
  * can fork link it.
  */
+#define _GNU_SOURCE
+#include <sched.h>
 #include <signal.h>
 #include "syscall.h"
 
@@ -28,4 +30,15 @@ void *__wasm_fork_buffer(void)
 hidden long __wasm_fork(void)
 {
 	return __syscall(SYS_clone, 0, 0, SIGCHLD, 0, 0, 0);
+}
+
+/*
+ * with CLONE_VM | CLONE_VFORK: vfork, the child on this memory until it
+ * execs or exits. (Nothing between vfork's caller and the syscall keeps
+ * anything on the stack in memory, which the child's own calls overwrite
+ * before the parent returns through them.)
+ */
+hidden long __wasm_vfork(void)
+{
+	return __syscall(SYS_clone, 0, 0, CLONE_VM | CLONE_VFORK | SIGCHLD, 0, 0, 0);
 }
