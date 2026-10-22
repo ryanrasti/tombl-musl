@@ -16,6 +16,39 @@ hidden void _dlstart(void) {
 void __wasm_call_ctors(void);
 int __main_void(void);
 hidden void _start_c(long *p);
+#ifdef __PIC__
+/*
+ * A position independent program (Scrt1.o), linked with libc.so: libc's
+ * internals are hidden there, so start as other ports do, through
+ * __libc_start_main, which runs the libraries' constructors (the host's
+ * loader queues them) and then this, the program's, then main.
+ */
+int __libc_start_main(int (*)(int, char **, char **), int, char **,
+	void (*)(void), void (*)(void), void (*)(void));
+
+/* clang names main after its signature (main(void) is __main_void, ...) */
+weak int __main_argc_argv(int, char **);
+weak int main(int, char **, char **);
+
+static int wasm_main(int argc, char **argv, char **envp)
+{
+	__wasm_call_ctors();
+	if (__main_argc_argv)
+		return __main_argc_argv(argc, argv);
+	if (main)
+		return main(argc, argv, envp);
+	return __main_void();
+}
+
+hidden void _start(void) {
+	if (__syscall(SYS_wasm_get_args, __wasm_process_args,
+	    sizeof(args_buf)) < 0) __builtin_trap();
+
+	__libc_start_main(wasm_main, __wasm_process_args->argc,
+		__wasm_process_args->argv, 0, 0, 0);
+	__builtin_trap();
+}
+#else
 hidden void _start(void) {
 	if (__syscall(SYS_wasm_get_args, __wasm_process_args,
 	    sizeof(args_buf)) < 0) __builtin_trap();
@@ -26,4 +59,5 @@ hidden void _start(void) {
 
 	exit(__main_void());
 }
+#endif
 #endif
