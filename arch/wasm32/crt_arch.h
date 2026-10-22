@@ -27,6 +27,7 @@ int __libc_start_main(int (*)(int, char **, char **), int, char **,
 	void (*)(void), void (*)(void), void (*)(void));
 
 /* clang names main after its signature (main(void) is __main_void, ...) */
+weak int __main_void(void);
 weak int __main_argc_argv(int, char **);
 weak int main(int, char **, char **);
 
