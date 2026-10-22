@@ -103,7 +103,16 @@ void __testcancel()
 static void init_cancellation()
 {
 	struct sigaction sa = {
+#ifdef __wasm__
+		/* No SA_RESTART: the handler can't leave a blocked syscall for
+		 * __cp_cancel, so the syscall must return (EINTR) for
+		 * __syscall_cp_c to act on the cancel, not restart and block
+		 * on. (Another syscall SIGCANCEL interrupts gets EINTR too: only
+		 * in a thread already cancelled, at its next cancellation point.) */
+		.sa_flags = SA_SIGINFO | SA_ONSTACK,
+#else
 		.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK,
+#endif
 		.sa_sigaction = cancel_handler
 	};
 	memset(&sa.sa_mask, -1, _NSIG/8);
