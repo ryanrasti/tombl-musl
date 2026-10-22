@@ -30,14 +30,15 @@ static int grow_to(uintptr_t end)
 		current = (uintptr_t)&__heap_end;
 		limit = size;
 	}
-	if (end <= limit && limit == size)
-		return 0;
 	if (limit != size) {
 		/* grown by someone else since: what's past limit is theirs */
+		uintptr_t inc = end - current;
 		current = size;
-		end = size + (end - current);
+		end = size + inc;
 		limit = size;
 	}
+	if (end <= limit)
+		return 0;
 	pages = (end - limit + PAGESIZE - 1) / PAGESIZE;
 	old = __builtin_wasm_memory_grow(0, pages);
 	if (old == SIZE_MAX)
