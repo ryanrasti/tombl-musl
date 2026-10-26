@@ -33,6 +33,13 @@ void (*__dyn_next_ctor(void))(void);
 #define MAX_DEPTH 16
 
 /*
+ * dlopen(0)'s handle, the program itself: as ld.so's, its symbols are the
+ * global scope's (the program, the libraries loaded with it, and those
+ * dlopened since: all RTLD_GLOBAL), which dlsym searches as RTLD_DEFAULT
+ */
+hidden const char __dl_self;
+
+/*
  * One dlopen at a time, as ld.so's lock: threads switch at the syscalls it
  * makes, and two loading one library would both find it not loaded yet.
  * Reentrant, for constructors that dlopen.
@@ -166,10 +173,8 @@ void *dlopen(const char *file, int mode)
 	int handle;
 
 	(void)mode;	/* always RTLD_NOW, RTLD_GLOBAL */
-	if (!file) {
-		__dl_seterr("dlopen: no handle for the program itself");
-		return 0;
-	}
+	if (!file)
+		return (void *)&__dl_self;
 	dl_lock();
 	if (strchr(file, '/')) {
 		handle = __dyn_find(base(file));

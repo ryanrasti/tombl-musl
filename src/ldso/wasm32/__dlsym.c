@@ -6,9 +6,11 @@
 __attribute__((import_module("dyn"), import_name("sym")))
 void *__dyn_sym(int handle, const char *name);
 
+extern hidden const char __dl_self;
+
 void *__dlsym(void *restrict p, const char *restrict s, void *restrict ra)
 {
-	void *sym = __dyn_sym((int)(long)p, s);
+	void *sym = __dyn_sym(p == &__dl_self ? 0 : (int)(long)p, s);
 
 	if (!sym)
 		__dl_seterr("Symbol not found: %s", s);
