@@ -40,7 +40,6 @@ weak_alias(dummy, __malloc_atfork);
 weak_alias(dummy, __aio_atfork);
 weak_alias(dummy, __pthread_key_atfork);
 weak_alias(dummy, __ldso_atfork);
-weak_alias(dummy, __wasm_mman_atfork);
 
 static void dummy_0(void) { }
 weak_alias(dummy_0, __tl_lock);
@@ -60,7 +59,6 @@ pid_t fork(void)
 		for (int i=0; i<sizeof atfork_locks/sizeof *atfork_locks; i++)
 			if (*atfork_locks[i]) LOCK(*atfork_locks[i]);
 		__malloc_atfork(-1);
-		__wasm_mman_atfork(-1);
 		__tl_lock();
 	}
 	pthread_t self=__pthread_self(), next=self->next;
@@ -76,7 +74,6 @@ pid_t fork(void)
 			}
 		}
 		__tl_unlock();
-		__wasm_mman_atfork(!ret);
 		__malloc_atfork(!ret);
 		for (int i=0; i<sizeof atfork_locks/sizeof *atfork_locks; i++)
 			if (*atfork_locks[i])

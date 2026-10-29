@@ -12,7 +12,6 @@ hidden long __wasm_fork(void);
 
 static void dummy(int x) { }
 weak_alias(dummy, __aio_atfork);
-weak_alias(dummy, __wasm_mman_atfork);
 
 void __post_Fork(int ret)
 {
@@ -28,8 +27,6 @@ void __post_Fork(int ret)
 	}
 	UNLOCK(__abort_lock);
 	if (!ret) __aio_atfork(1);
-	/* (a child's shared mappings' snapshots its own memory, its locks fresh: wasm_mman.c; fork's or _Fork's) */
-	if (!ret) __wasm_mman_atfork(1);
 }
 
 pid_t _Fork(void)

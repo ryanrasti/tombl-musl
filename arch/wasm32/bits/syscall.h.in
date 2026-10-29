@@ -16,6 +16,7 @@
 #define __NR_arch_specific_syscall 244
 #define __NR_bind 200
 #define __NR_bpf 280
+#define __NR_brk 214
 #define __NR_cachestat 451
 #define __NR_capget 90
 #define __NR_capset 91
@@ -164,6 +165,7 @@
 #define __NR_mlock 228
 #define __NR_mlock2 284
 #define __NR_mlockall 230
+#define __NR_mmap2 222
 #define __NR_mount 40
 #define __NR_mount_setattr 442
 #define __NR_move_mount 429
@@ -177,6 +179,7 @@
 #define __NR_mq_timedsend 182
 #define __NR_mq_timedsend_time64 418
 #define __NR_mq_unlink 181
+#define __NR_mremap 216
 #define __NR_mseal 462
 #define __NR_msgctl 187
 #define __NR_msgget 186
@@ -185,6 +188,7 @@
 #define __NR_msync 227
 #define __NR_munlock 229
 #define __NR_munlockall 231
+#define __NR_munmap 215
 #define __NR_name_to_handle_at 264
 #define __NR_nanosleep 101
 #define __NR_nfsservctl 42

@@ -1,12 +1,12 @@
 /*
- * brk and sbrk on a wasm memory, which others may grow too: the host's
- * dynamic loader (libraries, the stack, thread-local storage) grows a
- * dynamically linked process's memory, and only memory.grow's result says
- * where new memory starts. So sbrk grows from the break while what it
- * grew last is still the memory's end, and otherwise starts afresh at the
- * memory's end (the break moves there: sbrk's regions are its callers',
- * malloc's and mmap's, not one contiguous heap). brk can only grow, within
- * what sbrk has. (tombl's port assumed the memory's growth was its own.)
+ * brk and sbrk, by the kernel's break (exobox's: it keeps a process's
+ * memory). The memory is grown by others too (the host's dynamic loader:
+ * libraries, the stack, thread-local storage), so where the break can't
+ * grow from where it is, the kernel starts it again at the memory's end:
+ * a break moved by inc is then not where it was plus inc, and sbrk's
+ * memory is the new break less inc (sbrk's regions are its callers',
+ * malloc's, not one contiguous heap). On failure the kernel's brk returns
+ * the break as it was.
  */
 #define _BSD_SOURCE
 #include <errno.h>
@@ -15,88 +15,29 @@
 #include "pthread_impl.h"
 #include "syscall.h"
 
-/* a wasm page, memory.grow's and memory.size's unit (not the kernel's page, sysconf's) */
-#define WASM_PAGE 65536
-
-/*
- * The first break: the end of the initial memory, as wasm-ld sets it (the
- * host's dynamic loader's end, once it has linked the process: its GOT entry)
- */
-extern void __heap_end;
-
-static uintptr_t current, limit;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-/* grow to cover [current, end): 0, or -1 (ENOMEM) */
-static int grow_to(uintptr_t end)
-{
-	uintptr_t size = __builtin_wasm_memory_size(0) * WASM_PAGE;
-	size_t pages, old;
-
-	if (!current) {
-		current = (uintptr_t)&__heap_end;
-		limit = size;
-	}
-	if (limit != size) {
-		/* grown by someone else since: what's past limit is theirs */
-		uintptr_t inc = end - current;
-		if (inc > UINTPTR_MAX - size)
-			return -1;
-		current = size;
-		end = size + inc;
-		limit = size;
-	}
-	if (end <= limit)
-		return 0;
-	pages = (end - limit + WASM_PAGE - 1) / WASM_PAGE;
-	old = __builtin_wasm_memory_grow(0, pages);
-	if (old == SIZE_MAX)
-		return -1;
-	if (old * WASM_PAGE != limit) {
-		/* (grown by another thread's module meanwhile: start at what we got) */
-		end = old * WASM_PAGE + (end - current);
-		current = old * WASM_PAGE;
-	}
-	limit = (old + pages) * WASM_PAGE;
-	return 0;
-}
 
 int brk(void *end)
 {
-	int ret = -1;
-
-	if (pthread_mutex_lock(&mutex) != 0)
-		a_crash();
-	if (!current)
-		grow_to((uintptr_t)&__heap_end);
-	if ((uintptr_t)end >= current && (uintptr_t)end <= limit &&
-	    limit == __builtin_wasm_memory_size(0) * WASM_PAGE) {
-		current = (uintptr_t)end;
-		ret = 0;
-	}
-	pthread_mutex_unlock(&mutex);
-	if (ret)
-		errno = ENOMEM;
-	return ret;
+	return __syscall(SYS_brk, end) == (long)end ? 0 : __syscall_ret(-ENOMEM);
 }
 
 void *sbrk(intptr_t inc)
 {
-	void *old = (void *)-1;
-	uintptr_t base;
+	uintptr_t old, now;
 
 	if (inc < 0)
 		return (void *)__syscall_ret(-EINVAL);
 	if (pthread_mutex_lock(&mutex) != 0)
 		a_crash();
-	base = current ? current : (uintptr_t)&__heap_end;
-	/* (past the address space: no memory, not a wrapped break) */
-	if (inc <= UINTPTR_MAX - base && grow_to(base + inc) == 0) {
-		old = (void *)current;
-		current += inc;
+	old = __syscall(SYS_brk, 0);
+	if (inc) {
+		/* (past the address space: no memory, not a wrapped break) */
+		now = (uintptr_t)inc <= UINTPTR_MAX - old ? __syscall(SYS_brk, old + inc) : old;
+		old = now == old ? (uintptr_t)-1 : now - inc;
 	}
 	pthread_mutex_unlock(&mutex);
-	if (old == (void *)-1)
+	if (old == (uintptr_t)-1)
 		errno = ENOMEM;
-	return old;
+	return (void *)old;
 }
