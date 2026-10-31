@@ -1,7 +1,6 @@
 #include <sys/mman.h>
 #include "syscall.h"
 
-#ifndef __wasm__
 int mlock(const void *addr, size_t len)
 {
 #ifdef SYS_mlock
@@ -10,4 +9,3 @@ int mlock(const void *addr, size_t len)
 	return syscall(SYS_mlock2, addr, len, 0);
 #endif
 }
-#endif

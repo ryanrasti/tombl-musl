@@ -18,7 +18,6 @@ extern "C" {
 
 #define MAP_FAILED ((void *) -1)
 
-#ifndef __wasm__
 #define MAP_SHARED     0x01
 #define MAP_PRIVATE    0x02
 #define MAP_SHARED_VALIDATE 0x03
@@ -143,8 +142,6 @@ int mincore (void *, size_t, unsigned char *);
 #if defined(_LARGEFILE64_SOURCE)
 #define mmap64 mmap
 #define off64_t off_t
-#endif
-
 #endif
 
 int shm_open (const char *, int, mode_t);
