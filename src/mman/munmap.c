@@ -4,7 +4,6 @@
 static void dummy(void) { }
 weak_alias(dummy, __vm_wait);
 
-#ifndef __wasm__
 int __munmap(void *start, size_t len)
 {
 	__vm_wait();
@@ -12,4 +11,3 @@ int __munmap(void *start, size_t len)
 }
 
 weak_alias(__munmap, munmap);
-#endif
