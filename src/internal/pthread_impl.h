@@ -58,6 +58,10 @@ struct pthread {
 	volatile int killlock[1];
 	char *dlerror_buf;
 	void *stdio_locks;
+#ifdef __wasm__
+	/* its stack saved for fork (src/process/wasm32/fork_syscall.c), made as it first forks */
+	void *fork_buffer;
+#endif
 
 	/* Part 3 -- the positions of these fields relative to
 	 * the end of the structure is external and internal ABI. */

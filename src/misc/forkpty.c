@@ -6,7 +6,6 @@
 #include <sys/wait.h>
 #include <pthread.h>
 
-#ifndef __wasm__
 int forkpty(int *pm, char *name, const struct termios *tio, const struct winsize *ws)
 {
 	int m, s, ec=0, p[2], cs;
@@ -56,4 +55,3 @@ out:
 
 	return pid;
 }
-#endif
