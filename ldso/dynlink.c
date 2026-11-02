@@ -1,4 +1,3 @@
-#ifndef __wasm__
 #define _GNU_SOURCE
 #define SYSCALL_NO_TLS 1
 #include <stdlib.h>
@@ -24,6 +23,9 @@
 #include "fork_impl.h"
 #include "libc.h"
 #include "dynlink.h"
+#if DL_WASM
+#include "wasm32/module.h"
+#endif
 
 static size_t ldso_page_size;
 /* libc.h may have defined a macro for dynamic PAGE_SIZE already, but
@@ -114,6 +116,9 @@ struct dso {
 		size_t *got;
 	} *funcdescs;
 	size_t *got;
+#if DL_WASM
+	struct wasm_dso wasm;
+#endif
 	char buf[];
 };
 
@@ -235,6 +240,10 @@ static int search_vec(size_t *v, size_t *r, size_t key)
 	return 1;
 }
 
+#if DL_WASM
+#include "wasm32/dynlink.c"
+#endif
+
 static uint32_t sysv_hash(const char *s0)
 {
 	const unsigned char *s = (void *)s0;
@@ -312,6 +321,7 @@ static Sym *gnu_lookup_filtered(uint32_t h1, uint32_t *hashtab, struct dso *dso,
 #if defined(__GNUC__)
 __attribute__((always_inline))
 #endif
+#if !DL_WASM
 static inline struct symdef find_sym2(struct dso *dso, const char *s, int need_def, int use_deps)
 {
 	uint32_t h = 0, gh = gnu_hash(s), gho = gh / (8*sizeof(size_t)), *ght;
@@ -342,6 +352,7 @@ static inline struct symdef find_sym2(struct dso *dso, const char *s, int need_d
 	}
 	return def;
 }
+#endif
 
 static struct symdef find_sym(struct dso *dso, const char *s, int need_def)
 {
@@ -377,6 +388,7 @@ nomatch:
 	return (struct symdef){ 0 };
 }
 
+#if !DL_WASM
 static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stride)
 {
 	unsigned char *base = dso->base;
@@ -594,12 +606,14 @@ static void redo_lazy_relocs()
 		}
 	}
 }
+#endif
 
 /* A huge hack: to make up for the wastefulness of shared libraries
  * needing at least a page of dirty memory even if they have no global
  * data, we reclaim the gaps at the beginning and end of writable maps
  * and "donate" them to the heap. */
 
+#if !DL_WASM
 static void reclaim(struct dso *dso, size_t start, size_t end)
 {
 	if (start >= dso->relro_start && start < dso->relro_end) start = dso->relro_end;
@@ -622,6 +636,7 @@ static void reclaim_gaps(struct dso *dso)
 			ph->p_vaddr+ph->p_memsz+PAGE_SIZE-1 & -PAGE_SIZE);
 	}
 }
+#endif
 
 static ssize_t read_loop(int fd, void *p, size_t n)
 {
@@ -637,6 +652,7 @@ static ssize_t read_loop(int fd, void *p, size_t n)
 	return n;
 }
 
+#if !DL_WASM
 static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t off)
 {
 	static int no_map_fixed;
@@ -867,6 +883,7 @@ error:
 	free(allocated_buf);
 	return 0;
 }
+#endif
 
 static int path_open(const char *name, const char *s, char *buf, size_t buf_size)
 {
@@ -1385,6 +1402,7 @@ static void revert_syms(struct dso *old_tail)
 	syms_tail = old_tail;
 }
 
+#if !DL_WASM
 static void do_mips_relocs(struct dso *p, size_t *got)
 {
 	size_t i, j, rel[2];
@@ -1463,6 +1481,7 @@ static void kernel_mapped_dso(struct dso *p)
 	p->map_len = max_addr - min_addr;
 	p->kernel_mapped = 1;
 }
+#endif
 
 void __libc_exit_fini()
 {
@@ -1705,6 +1724,7 @@ static void install_new_tls(void)
  * linker itself, but some of the relocations performed may need to be
  * replaced later due to copy relocations in the main program. */
 
+#if !DL_WASM
 hidden void __dls2(unsigned char *base, size_t *sp)
 {
 	size_t *auxv;
@@ -1764,6 +1784,7 @@ hidden void __dls2(unsigned char *base, size_t *sp)
 	if (DL_FDPIC) ((stage3_func)&ldso.funcdescs[dls2b_def.sym-ldso.syms])(sp, auxv);
 	else ((stage3_func)laddr(&ldso, dls2b_def.sym->st_value))(sp, auxv);
 }
+#endif
 
 /* Stage 2b sets up a valid thread pointer, which requires relocations
  * completed in stage 2, and on which stage 3 is permitted to depend.
@@ -2074,6 +2095,7 @@ void __dls3(size_t *sp, size_t *auxv)
 	for(;;);
 }
 
+#if !DL_WASM
 static void prepare_lazy(struct dso *p)
 {
 	size_t dyn[DYN_CNT], n, flags1=0;
@@ -2095,6 +2117,7 @@ static void prepare_lazy(struct dso *p)
 	p->lazy_next = lazy_head;
 	lazy_head = p;
 }
+#endif
 
 void *dlopen(const char *file, int mode)
 {
@@ -2231,6 +2254,7 @@ hidden int __dl_invalid_handle(void *h)
 	return 1;
 }
 
+#if !DL_WASM
 static void *addr2dso(size_t a)
 {
 	struct dso *p;
@@ -2263,6 +2287,7 @@ static void *addr2dso(size_t a)
 	}
 	return 0;
 }
+#endif
 
 static void *do_dlsym(struct dso *p, const char *s, void *ra)
 {
@@ -2289,6 +2314,7 @@ static void *do_dlsym(struct dso *p, const char *s, void *ra)
 	return laddr(def.dso, def.sym->st_value);
 }
 
+#if !DL_WASM
 int dladdr(const void *addr_arg, Dl_info *info)
 {
 	size_t addr = (size_t)addr_arg;
@@ -2355,6 +2381,7 @@ int dladdr(const void *addr_arg, Dl_info *info)
 
 	return 1;
 }
+#endif
 
 hidden void *__dlsym(void *restrict p, const char *restrict s, void *restrict ra)
 {
@@ -2438,4 +2465,3 @@ static void error_noop(const char *fmt, ...)
 {
 }
 
-#endif

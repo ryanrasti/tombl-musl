@@ -360,5 +360,8 @@
 #define __NR_wasm_sem_trywait (__NR_arch_specific_syscall + 5)
 #define __NR_wasm_sem_unlink (__NR_arch_specific_syscall + 3)
 #define __NR_wasm_sem_wait (__NR_arch_specific_syscall + 4)
+#define __NR_wasm_load_module (__NR_arch_specific_syscall + 12)
+#define __NR_wasm_link_module (__NR_arch_specific_syscall + 13)
+#define __NR_wasm_module_sym (__NR_arch_specific_syscall + 14)
 #define __NR_write 64
 #define __NR_writev 66
