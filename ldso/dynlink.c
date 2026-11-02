@@ -1,4 +1,3 @@
-#ifndef __wasm__
 #define _GNU_SOURCE
 #define SYSCALL_NO_TLS 1
 #include <stdlib.h>
@@ -24,6 +23,9 @@
 #include "fork_impl.h"
 #include "libc.h"
 #include "dynlink.h"
+#if DL_WASM
+#include "wasm32/dso.h"
+#endif
 
 static size_t ldso_page_size;
 /* libc.h may have defined a macro for dynamic PAGE_SIZE already, but
@@ -114,6 +116,9 @@ struct dso {
 		size_t *got;
 	} *funcdescs;
 	size_t *got;
+#if DL_WASM
+	struct wasm_dso wasm;
+#endif
 	char buf[];
 };
 
@@ -210,6 +215,8 @@ static void (*fdbarrier(void *p))()
 }
 #define fpaddr(p, v) fdbarrier((&(struct funcdesc){ \
 	laddr(p, v), (p)->got }))
+#elif DL_WASM
+#include "wasm32/dynlink.c"
 #else
 #define laddr(p, v) (void *)((p)->base + (v))
 #define laddr_pg(p, v) laddr(p, v)
@@ -858,6 +865,7 @@ done_mapping:
 	dso->base = base;
 	dso->dynv = laddr(dso, dyn);
 	if (dso->tls.size) dso->tls.image = laddr(dso, tls_image);
+	if (DL_WASM && wasm_map_code(dso, fd, eh, ph0) < 0) goto error;
 	free(allocated_buf);
 	return map;
 noexec:
@@ -1430,6 +1438,11 @@ static void reloc_all(struct dso *p)
 			}
 		}
 
+		if (DL_WASM && wasm_instantiate(p) < 0) {
+			error("Error instantiating %s: %m", p->name);
+			if (runtime) longjmp(*rtld_fail, 1);
+		}
+
 		p->relocated = 1;
 	}
 }
@@ -1462,6 +1475,7 @@ static void kernel_mapped_dso(struct dso *p)
 	p->map = p->base + min_addr;
 	p->map_len = max_addr - min_addr;
 	p->kernel_mapped = 1;
+	if (DL_WASM) wasm_kernel_mapped(p);
 }
 
 void __libc_exit_fini()
@@ -2438,4 +2452,3 @@ static void error_noop(const char *fmt, ...)
 {
 }
 
-#endif
