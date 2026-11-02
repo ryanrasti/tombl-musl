@@ -69,6 +69,10 @@ struct fdpic_dummy_loadmap {
 #define DL_FDPIC 0
 #endif
 
+#ifndef DL_WASM
+#define DL_WASM 0
+#endif
+
 #ifndef DL_NOMMU_SUPPORT
 #define DL_NOMMU_SUPPORT 0
 #endif
