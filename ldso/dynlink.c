@@ -675,6 +675,7 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 
 static void unmap_library(struct dso *dso)
 {
+	if (DL_WASM) wasm_unmap_code(dso);
 	if (dso->loadmap) {
 		size_t i;
 		for (i=0; i<dso->loadmap->nsegs; i++) {
@@ -1702,6 +1703,7 @@ static void install_new_tls(void)
 	/* Install new dtv for each thread. */
 	for (j=0, td=self; !j || td!=self; j++, td=td->next) {
 		td->dtv = newdtv[j];
+		if (DL_WASM) wasm_install_tls(td, newdtv[j], old_cnt);
 	}
 
 	__tl_unlock();
@@ -2275,6 +2277,8 @@ static void *addr2dso(size_t a)
 				return 0;
 		}
 	}
+	if (DL_WASM) for (p=head; p; p=p->next)
+		if (a-p->wasm.table_base < p->wasm.table_size) return p;
 	return 0;
 }
 

@@ -362,5 +362,7 @@
 #define __NR_wasm_sem_wait (__NR_arch_specific_syscall + 4)
 #define __NR_wasm_load_code (__NR_arch_specific_syscall + 12)
 #define __NR_wasm_instantiate (__NR_arch_specific_syscall + 13)
+#define __NR_wasm_set_tls (__NR_arch_specific_syscall + 14)
+#define __NR_wasm_unload_code (__NR_arch_specific_syscall + 15)
 #define __NR_write 64
 #define __NR_writev 66

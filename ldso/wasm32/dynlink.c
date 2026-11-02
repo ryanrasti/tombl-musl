@@ -48,6 +48,13 @@ static int wasm_map_code(struct dso *p, int fd, Ehdr *eh, Phdr *ph)
 	return 0;
 }
 
+/* unmap_library's: its code let go of (EINVAL, and kept, if instantiated) */
+static void wasm_unmap_code(struct dso *p)
+{
+	if (p->wasm.code > 0) __syscall(SYS_wasm_unload_code, p->wasm.code);
+	p->wasm.code = 0;
+}
+
 /* kernel_mapped_dso's: the interpreter (instantiated by exec at its own
  * __table_base) or the program (its code and table base in auxv) */
 static void wasm_kernel_mapped(struct dso *p)
@@ -91,3 +98,12 @@ static int wasm_instantiate(struct dso *p)
 	return 0;
 }
 
+/* install_new_tls's, for each thread: each module loaded since (its TLS id
+ * past old_cnt) has its block in that thread at dtv[id], not at tp - its
+ * offset; its instance in that thread (td, its thread pointer) told so */
+static void wasm_install_tls(pthread_t td, uintptr_t *dtv, size_t old_cnt)
+{
+	for (struct dso *p = head; p; p = p->next)
+		if (p->tls_id > old_cnt)
+			__syscall(SYS_wasm_set_tls, p->wasm.code, td, dtv[p->tls_id] - DTP_OFFSET);
+}
