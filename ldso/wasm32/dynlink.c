@@ -75,8 +75,8 @@ static void wasm_kernel_mapped(struct dso *p)
 		wasm_table_next = p->wasm.table_base + p->wasm.table_size;
 }
 
-/* reloc_all's: the relocated dso instantiated (the interpreter, exec's
- * instance: its GOT globals read again); then, but for the interpreter,
+/* reloc_all's: the relocated dso instantiated, its GOT (DT_PLTGOT) read
+ * (the interpreter, exec's instance: its GOT globals read again); then, but for the interpreter,
  * whose _dlstart did it, its memory initialized by its start function and
  * its own relocations applied, in user space. Its thread-local block is
  * set once there is one (__wasm_dso_tls, wasm_install_tls) */
@@ -84,7 +84,7 @@ static int wasm_instantiate(struct dso *p)
 {
 	size_t v;
 	long r = __syscall(SYS_wasm_instantiate, p->wasm.code, laddr(p, p->wasm.memory_vaddr),
-		p->wasm.table_base, p->wasm.table_size);
+		p->wasm.table_base, p->wasm.table_size, p->got);
 	if (r < 0) {
 		errno = -r;
 		return -1;
