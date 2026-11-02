@@ -11,6 +11,8 @@
 /* its start function (its memory initialized) and __wasm_apply_data_relocs, run once as it's loaded */
 #define DT_WASM_START 0x60005741
 #define DT_WASM_RELOCS 0x60005742
+/* its __wasm_init_tls, called with each thread's block */
+#define DT_WASM_INIT_TLS 0x60005743
 
 struct wasm_dso {
 	int code;	/* the host's handle; 0: the interpreter, exec's instance */

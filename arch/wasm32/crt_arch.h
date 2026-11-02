@@ -2,9 +2,7 @@
 #include "syscall.h"
 
 #ifndef __PIC__
-// The wasm process ABI caps the complete argument blob at four 64 KiB pages.
-static char args_buf[65536 * 4];
-hidden struct wasm_process_args *__wasm_process_args = (void*)args_buf;
+hidden struct wasm_process_args *__wasm_process_args;
 #endif
 
 #ifdef START_is_dlstart
@@ -87,9 +85,25 @@ hidden void _start(long *p) {
 	__builtin_trap();
 }
 #else
+#include <sys/mman.h>
+/* the program's start function, a slot of its own table (exec's, from its ELF file's DT_WASM_START) */
+#define AT_WASM_INIT 0x7763
+/*
+ * A static program's entry (exec's e_entry). Its memory holds nothing yet
+ * (its data is its start function's to copy), so the arguments go where
+ * that doesn't touch, a mapping of their own (the wasm process ABI caps
+ * them at four 64 KiB pages), then the start function runs, in user space.
+ */
 hidden void _start(void) {
-	if (__syscall(SYS_wasm_get_args, __wasm_process_args,
-	    sizeof(args_buf)) < 0) __builtin_trap();
+	const size_t args_size = 65536 * 4;
+	long r = __syscall(SYS_mmap2, 0, args_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	struct wasm_process_args *args = (void *)r;
+	size_t i, n, *auxv;
+	if ((unsigned long)r > -4096UL || __syscall(SYS_wasm_get_args, args, args_size) < 0) __builtin_trap();
+	for (n=0; args->envp[n]; n++);
+	auxv = (size_t *)(args->envp + n + 1);
+	for (i=0; auxv[i]; i+=2) if (auxv[i] == AT_WASM_INIT) ((void (*)(void))auxv[i+1])();
+	__wasm_process_args = args;
 
 	__init_libc(__wasm_process_args->envp, __wasm_process_args->argv[0]);
 	__libc_start_init();

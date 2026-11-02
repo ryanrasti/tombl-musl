@@ -2086,6 +2086,7 @@ void __dls3(size_t *sp, size_t *auxv)
 
 	errno = 0;
 
+	if (DL_WASM) __wasm_dso_tls();
 	CRTJMP((void *)aux[AT_ENTRY], argv-1);
 	for(;;);
 }

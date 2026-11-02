@@ -10,6 +10,7 @@
 
 #ifdef __wasm__
 hidden void __wasm_init_tls(void *);
+hidden void __wasm_dso_tls(void);
 #endif
 
 static void dummy_0()
@@ -19,6 +20,10 @@ weak_alias(dummy_0, __acquire_ptc);
 weak_alias(dummy_0, __release_ptc);
 weak_alias(dummy_0, __pthread_tsd_run_dtors);
 weak_alias(dummy_0, __do_orphaned_stdio_locks);
+#ifdef __wasm__
+/* a new thread's blocks of every loaded module (the dynamic linker's; none in a static program) */
+weak_alias(dummy_0, __wasm_dso_tls);
+#endif
 weak_alias(dummy_0, __dl_thread_cleanup);
 weak_alias(dummy_0, __membarrier_init);
 
@@ -203,6 +208,7 @@ static int start(void *p)
 	struct start_args *args = p;
 #ifdef __wasm__
 	__wasm_init_tls(args->wasm_tls);
+	__wasm_dso_tls();
 #endif
 	int state = args->control;
 	if (state) {
@@ -223,6 +229,7 @@ static int start_c11(void *p)
 	struct start_args *args = p;
 #ifdef __wasm__
 	__wasm_init_tls(args->wasm_tls);
+	__wasm_dso_tls();
 #endif
 	int (*start)(void*) = (int(*)(void*)) args->start_func;
 	__pthread_exit((void *)(uintptr_t)start(args->start_arg));

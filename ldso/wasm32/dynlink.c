@@ -78,15 +78,13 @@ static void wasm_kernel_mapped(struct dso *p)
 /* reloc_all's: the relocated dso instantiated (the interpreter, exec's
  * instance: its GOT globals read again); then, but for the interpreter,
  * whose _dlstart did it, its memory initialized by its start function and
- * its own relocations applied, in user space. The start function points a
- * module with TLS at its own block (wasm-ld's main thread's): the thread
- * pointer set again puts it back at tp - its offset (TLS variant II), as
- * the host keeps each instance's __tls_base */
+ * its own relocations applied, in user space. Its thread-local block is
+ * set once there is one (__wasm_dso_tls, wasm_install_tls) */
 static int wasm_instantiate(struct dso *p)
 {
 	size_t v;
 	long r = __syscall(SYS_wasm_instantiate, p->wasm.code, laddr(p, p->wasm.memory_vaddr),
-		p->wasm.table_base, p->wasm.table_size, -p->tls.offset);
+		p->wasm.table_base, p->wasm.table_size);
 	if (r < 0) {
 		errno = -r;
 		return -1;
@@ -94,16 +92,36 @@ static int wasm_instantiate(struct dso *p)
 	if (p == &ldso) return 0;
 	if (search_vec(p->dynv, &v, DT_WASM_START)) fpaddr(p, v)();
 	if (search_vec(p->dynv, &v, DT_WASM_RELOCS)) fpaddr(p, v)();
-	if (p->tls.size) __syscall(SYS_set_thread_area, __get_tp());
 	return 0;
 }
 
+/* a dso's instance in the calling thread: its __tls_base the block (its __wasm_init_tls, which copies its image there too) */
+static void wasm_init_tls(struct dso *p, uintptr_t block)
+{
+	size_t v;
+	if (p->tls_id && search_vec(p->dynv, &v, DT_WASM_INIT_TLS))
+		((void (*)(void *))laddr(p, v))((void *)block);
+}
+
+/* the calling thread's blocks of every dso, from its dtv: as it starts
+ * (pthread_create.c's start), and the main thread's once __dls3 has made
+ * its TLS */
+hidden void __wasm_dso_tls(void)
+{
+	pthread_t self = __pthread_self();
+	for (struct dso *p = head; p; p = p->next)
+		if (p->tls_id) wasm_init_tls(p, self->dtv[p->tls_id] - DTP_OFFSET);
+}
+
 /* install_new_tls's, for each thread: each module loaded since (its TLS id
- * past old_cnt) has its block in that thread at dtv[id], not at tp - its
- * offset; its instance in that thread (td, its thread pointer) told so */
+ * past old_cnt) has its block in that thread at dtv[id]; the calling
+ * thread's set here, another's by the host (wasm_set_tls, by its tid), as
+ * only its own code reaches its instance's __tls_base */
 static void wasm_install_tls(pthread_t td, uintptr_t *dtv, size_t old_cnt)
 {
-	for (struct dso *p = head; p; p = p->next)
-		if (p->tls_id > old_cnt)
-			__syscall(SYS_wasm_set_tls, p->wasm.code, td, dtv[p->tls_id] - DTP_OFFSET);
+	for (struct dso *p = head; p; p = p->next) {
+		if (p->tls_id <= old_cnt) continue;
+		if (td == __pthread_self()) wasm_init_tls(p, dtv[p->tls_id] - DTP_OFFSET);
+		else __syscall(SYS_wasm_set_tls, p->wasm.code, td->tid, dtv[p->tls_id] - DTP_OFFSET);
+	}
 }
