@@ -1,4 +1,3 @@
-#ifndef __wasm__
 #define _GNU_SOURCE
 #define SYSCALL_NO_TLS 1
 #include <stdlib.h>
@@ -24,6 +23,9 @@
 #include "fork_impl.h"
 #include "libc.h"
 #include "dynlink.h"
+#if DL_WASM
+#include "wasm32/dso.h"
+#endif
 
 static size_t ldso_page_size;
 /* libc.h may have defined a macro for dynamic PAGE_SIZE already, but
@@ -114,6 +116,9 @@ struct dso {
 		size_t *got;
 	} *funcdescs;
 	size_t *got;
+#if DL_WASM
+	struct wasm_dso wasm;
+#endif
 	char buf[];
 };
 
@@ -210,6 +215,8 @@ static void (*fdbarrier(void *p))()
 }
 #define fpaddr(p, v) fdbarrier((&(struct funcdesc){ \
 	laddr(p, v), (p)->got }))
+#elif DL_WASM
+#include "wasm32/dynlink.c"
 #else
 #define laddr(p, v) (void *)((p)->base + (v))
 #define laddr_pg(p, v) laddr(p, v)
@@ -668,6 +675,7 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 
 static void unmap_library(struct dso *dso)
 {
+	if (DL_WASM) wasm_unmap_code(dso);
 	if (dso->loadmap) {
 		size_t i;
 		for (i=0; i<dso->loadmap->nsegs; i++) {
@@ -858,6 +866,7 @@ done_mapping:
 	dso->base = base;
 	dso->dynv = laddr(dso, dyn);
 	if (dso->tls.size) dso->tls.image = laddr(dso, tls_image);
+	if (DL_WASM && wasm_map_code(dso, fd, eh, ph0) < 0) goto error;
 	free(allocated_buf);
 	return map;
 noexec:
@@ -1430,6 +1439,11 @@ static void reloc_all(struct dso *p)
 			}
 		}
 
+		if (DL_WASM && wasm_instantiate(p) < 0) {
+			error("Error instantiating %s: %m", p->name);
+			if (runtime) longjmp(*rtld_fail, 1);
+		}
+
 		p->relocated = 1;
 	}
 }
@@ -1462,6 +1476,7 @@ static void kernel_mapped_dso(struct dso *p)
 	p->map = p->base + min_addr;
 	p->map_len = max_addr - min_addr;
 	p->kernel_mapped = 1;
+	if (DL_WASM) wasm_kernel_mapped(p);
 }
 
 void __libc_exit_fini()
@@ -1688,6 +1703,7 @@ static void install_new_tls(void)
 	/* Install new dtv for each thread. */
 	for (j=0, td=self; !j || td!=self; j++, td=td->next) {
 		td->dtv = newdtv[j];
+		if (DL_WASM) wasm_install_tls(td, newdtv[j], old_cnt);
 	}
 
 	__tl_unlock();
@@ -2070,6 +2086,7 @@ void __dls3(size_t *sp, size_t *auxv)
 
 	errno = 0;
 
+	if (DL_WASM) __wasm_dso_tls();
 	CRTJMP((void *)aux[AT_ENTRY], argv-1);
 	for(;;);
 }
@@ -2261,6 +2278,8 @@ static void *addr2dso(size_t a)
 				return 0;
 		}
 	}
+	if (DL_WASM) for (p=head; p; p=p->next)
+		if (a-p->wasm.table_base < p->wasm.table_size) return p;
 	return 0;
 }
 
@@ -2438,4 +2457,3 @@ static void error_noop(const char *fmt, ...)
 {
 }
 
-#endif

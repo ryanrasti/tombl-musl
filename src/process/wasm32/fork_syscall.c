@@ -18,7 +18,12 @@
 #include "pthread_impl.h"
 #include "syscall.h"
 
+/* (libc.so's: shared by the modules of a dynamically linked process, which the host gives each a part of) */
+#ifdef WASM_SHARED_LIBC
+#define FORK_BUFFER_SIZE (512 * 1024)
+#else
 #define FORK_BUFFER_SIZE (128 * 1024)
+#endif
 
 /* Asyncify's header (next, end), then where the saved frames start; the frames after it, 16-aligned */
 struct fork_buffer {
@@ -26,25 +31,6 @@ struct fork_buffer {
 };
 #define FORK_HEADER 16
 
-#ifdef WASM_SHARED_LIBC
-/*
- * (in libc.so, unused: the loader gives each module of a dynamically
- * linked process a buffer of its own)
- */
-static char fork_stack[FORK_BUFFER_SIZE] __attribute__((aligned(16)));
-static struct fork_buffer fork_buffer = { fork_stack, fork_stack + FORK_BUFFER_SIZE, fork_stack };
-
-__attribute__((export_name("__wasm_fork_buffer")))
-void *__wasm_fork_buffer(void)
-{
-	return &fork_buffer;
-}
-
-static int fork_prepare(void)
-{
-	return 0;
-}
-#else
 hidden void *__mmap(void *, size_t, int, int, int, off_t);
 hidden int __munmap(void *, size_t);
 
@@ -85,7 +71,6 @@ hidden void __wasm_fork_release(pthread_t self)
 		__munmap(self->fork_buffer, FORK_HEADER + FORK_BUFFER_SIZE);
 	self->fork_buffer = 0;
 }
-#endif
 
 /* clone(fn, fn_arg, flags, ptid, ctid, tls) with no fn: fork */
 hidden long __wasm_fork(void)
