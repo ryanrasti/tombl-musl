@@ -7,20 +7,10 @@ __asm__(".globaltype __table_base, i32, immutable\n");
 
 static int search_vec(size_t *v, size_t *r, size_t key);
 
-/* the next dso's table slots: past exec's and every dso mapped since */
+/* the next dso's table slots: past exec's and every dso mapped since (a
+ * failed dlopen's kept: what it instantiated keeps them, in the host's
+ * every thread, so a later dso's would be bound to its functions) */
 static size_t wasm_table_next;
-/* wasm_table_next as a dlopen began: a failed one's slots taken back (as revert_syms its symbols) */
-static size_t wasm_table_dlopen;
-
-static void wasm_dlopen_begin(void)
-{
-	wasm_table_dlopen = wasm_table_next;
-}
-
-static void wasm_dlopen_fail(void)
-{
-	wasm_table_next = wasm_table_dlopen;
-}
 
 /* (a function pointer at run time is its slot, a small number: one past
  * a data mapping's address (a process of more slots than its lowest
@@ -140,10 +130,12 @@ hidden void __wasm_dso_tls(void)
 /* install_new_tls's, for each thread, the calling one first: each module
  * loaded since (its TLS id past old_cnt) has its block in that thread at
  * dtv[id]. The calling thread's set by its __wasm_init_tls, which copies
- * the image and relocates it (its TLS relocations are memory-base relative:
- * the same in every thread); another's a copy of the calling thread's,
+ * the image and relocates it; another's a copy of the calling thread's,
  * its __tls_base set by the host (wasm_set_tls, by its tid), as only its
- * own code reaches its instance's */
+ * own code reaches its instance's. A copy is the relocated block: wasm32's
+ * TLS relocations are data addresses (a thread-local pointer to a global),
+ * the same in every thread; a thread-local pointer to another thread-local
+ * is no static initializer (C++'s is a per-thread dynamic one) */
 static void wasm_install_tls(pthread_t td, uintptr_t *dtv, size_t old_cnt)
 {
 	pthread_t self = __pthread_self();
