@@ -24,6 +24,8 @@ weak_alias(dummy_0, __pthread_tsd_run_dtors);
 static void dummy_fork_release(pthread_t self)
 {
 }
+/* (hidden, as its definition is: libc.so neither imports nor exports it) */
+hidden void __wasm_fork_release(pthread_t);
 weak_alias(dummy_fork_release, __wasm_fork_release);
 #endif
 weak_alias(dummy_0, __do_orphaned_stdio_locks);
