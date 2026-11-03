@@ -9,7 +9,23 @@ static int search_vec(size_t *v, size_t *r, size_t key);
 
 /* the next dso's table slots: past exec's and every dso mapped since */
 static size_t wasm_table_next;
+/* wasm_table_next as a dlopen began: a failed one's slots taken back (as revert_syms its symbols) */
+static size_t wasm_table_dlopen;
 
+static void wasm_dlopen_begin(void)
+{
+	wasm_table_dlopen = wasm_table_next;
+}
+
+static void wasm_dlopen_fail(void)
+{
+	wasm_table_next = wasm_table_dlopen;
+}
+
+/* (a function pointer at run time is its slot, a small number: one past
+ * a data mapping's address (a process of more slots than its lowest
+ * mapping's address) is taken as that data's by addr2dso, which looks at
+ * PT_LOADs first, as mainline's does) */
 static void *laddr(const struct dso *p, size_t v)
 {
 	if (v - WASM_FUNC_VADDR < p->wasm.table_size)
@@ -103,25 +119,42 @@ static void wasm_init_tls(struct dso *p, uintptr_t block)
 		((void (*)(void *))laddr(p, v))((void *)block);
 }
 
-/* the calling thread's blocks of every dso, from its dtv: as it starts
- * (pthread_create.c's start), and the main thread's once __dls3 has made
- * its TLS */
+hidden void __acquire_ptc(void);
+hidden void __release_ptc(void);
+
+/* the calling thread's blocks of every dso its dtv has, from its dtv: as
+ * it starts (pthread_create.c's start), and the main thread's once __dls3
+ * has made its TLS. Under the ptc lock, which dlopen holds (__inhibit_ptc)
+ * as it links a dso in and installs its TLS: a dso its dtv hasn't (one
+ * loaded since) is install_new_tls's to give it. */
 hidden void __wasm_dso_tls(void)
 {
 	pthread_t self = __pthread_self();
+	__acquire_ptc();
 	for (struct dso *p = head; p; p = p->next)
-		if (p->tls_id) wasm_init_tls(p, self->dtv[p->tls_id] - DTP_OFFSET);
+		if (p->tls_id && p->tls_id <= self->dtv[0])
+			wasm_init_tls(p, self->dtv[p->tls_id] - DTP_OFFSET);
+	__release_ptc();
 }
 
-/* install_new_tls's, for each thread: each module loaded since (its TLS id
- * past old_cnt) has its block in that thread at dtv[id]; the calling
- * thread's set here, another's by the host (wasm_set_tls, by its tid), as
- * only its own code reaches its instance's __tls_base */
+/* install_new_tls's, for each thread, the calling one first: each module
+ * loaded since (its TLS id past old_cnt) has its block in that thread at
+ * dtv[id]. The calling thread's set by its __wasm_init_tls, which copies
+ * the image and relocates it (its TLS relocations are memory-base relative:
+ * the same in every thread); another's a copy of the calling thread's,
+ * its __tls_base set by the host (wasm_set_tls, by its tid), as only its
+ * own code reaches its instance's */
 static void wasm_install_tls(pthread_t td, uintptr_t *dtv, size_t old_cnt)
 {
+	pthread_t self = __pthread_self();
 	for (struct dso *p = head; p; p = p->next) {
 		if (p->tls_id <= old_cnt) continue;
-		if (td == __pthread_self()) wasm_init_tls(p, dtv[p->tls_id] - DTP_OFFSET);
-		else __syscall(SYS_wasm_set_tls, p->wasm.code, td->tid, dtv[p->tls_id] - DTP_OFFSET);
+		uintptr_t block = dtv[p->tls_id] - DTP_OFFSET;
+		if (td == self) {
+			wasm_init_tls(p, block);
+		} else {
+			memcpy((void *)block, (void *)(self->dtv[p->tls_id] - DTP_OFFSET), p->tls.size);
+			__syscall(SYS_wasm_set_tls, p->wasm.code, td->tid, block);
+		}
 	}
 }

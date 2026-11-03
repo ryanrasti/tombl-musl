@@ -2144,12 +2144,14 @@ void *dlopen(const char *file, int mode)
 	orig_lazy_head = lazy_head;
 	orig_syms_tail = syms_tail;
 	orig_tail = tail;
+	if (DL_WASM) wasm_dlopen_begin();
 	noload = mode & RTLD_NOLOAD;
 
 	rtld_fail = &jb;
 	if (setjmp(*rtld_fail)) {
 		/* Clean up anything new that was (partially) loaded */
 		revert_syms(orig_syms_tail);
+		if (DL_WASM) wasm_dlopen_fail();
 		for (p=orig_tail->next; p; p=next) {
 			next = p->next;
 			while (p->td_index) {

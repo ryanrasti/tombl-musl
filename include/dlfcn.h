@@ -39,6 +39,15 @@ int dlinfo(void *, int, void *);
 __REDIR(dlsym, __dlsym_time64);
 #endif
 
+#if defined(__wasm__)
+/* (wasm has no return address for dlsym to tell its caller's module by,
+ * as RTLD_NEXT needs: the caller passes an address of its own module's,
+ * wasm-ld's __dso_handle, which every module has) */
+void *__dlsym_from(void *__restrict, const char *__restrict, void *);
+extern void *__dso_handle __attribute__((__visibility__("hidden")));
+#define dlsym(p, s) __dlsym_from(p, s, &__dso_handle)
+#endif
+
 #ifdef __cplusplus
 }
 #endif
