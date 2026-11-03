@@ -1,6 +1,6 @@
 #define LDSO_ARCH "wasm32"
 
-/* the code is a wasm module (ldso/wasm32/dynlink.c); no MMU */
+/* the code is a wasm module (ldso/wasm32/dynlink.h); no MMU */
 #define DL_WASM 1
 #define DL_NOMMU_SUPPORT 1
 
