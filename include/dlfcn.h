@@ -22,9 +22,7 @@ extern "C" {
 int    dlclose(void *);
 char  *dlerror(void);
 void  *dlopen(const char *, int);
-#ifndef __wasm__
 void  *dlsym(void *__restrict, const char *__restrict);
-#endif
 
 #if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 typedef struct {
@@ -43,11 +41,12 @@ __REDIR(dlsym, __dlsym_time64);
 
 #if defined(__wasm__)
 /* (wasm has no return address for dlsym to tell its caller's module by,
- * as RTLD_NEXT needs: the caller passes an address of its own module's,
- * wasm-ld's __dso_handle, which every module has) */
+ * as RTLD_NEXT needs: a call passes an address of its own module's,
+ * wasm-ld's __dso_handle, which every module has, inline in its caller;
+ * dlsym's address is the extern one's, libc's) */
 void *__dlsym_from(void *__restrict, const char *__restrict, void *);
 extern void *__dso_handle __attribute__((__visibility__("hidden")));
-static __inline __attribute__((__always_inline__)) void *dlsym(void *__restrict __p, const char *__restrict __s)
+extern __inline __attribute__((__gnu_inline__, __always_inline__)) void *dlsym(void *__restrict __p, const char *__restrict __s)
 {
 	return __dlsym_from(__p, __s, &__dso_handle);
 }

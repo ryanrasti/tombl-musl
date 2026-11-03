@@ -18,7 +18,7 @@
 #include "pthread_impl.h"
 #include "syscall.h"
 
-/* (libc.so's: shared by the modules of a dynamically linked process, which the host gives each a part of) */
+/* (libc.so's: every module of a dynamically linked process built for fork unwinds onto it, one Asyncify stack) */
 #ifdef WASM_SHARED_LIBC
 #define FORK_BUFFER_SIZE (512 * 1024)
 #else
