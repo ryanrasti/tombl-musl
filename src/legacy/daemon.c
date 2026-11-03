@@ -2,7 +2,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#ifndef __wasm__
 int daemon(int nochdir, int noclose)
 {
 	if (!nochdir && chdir("/"))
@@ -32,4 +31,3 @@ int daemon(int nochdir, int noclose)
 
 	return 0;
 }
-#endif
