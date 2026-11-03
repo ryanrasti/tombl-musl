@@ -19,6 +19,13 @@ static void dummy_0()
 weak_alias(dummy_0, __acquire_ptc);
 weak_alias(dummy_0, __release_ptc);
 weak_alias(dummy_0, __pthread_tsd_run_dtors);
+#ifdef __wasm__
+/* (a thread's fork buffer: fork_syscall.c's, in programs that fork) */
+static void dummy_fork_release(pthread_t self)
+{
+}
+weak_alias(dummy_fork_release, __wasm_fork_release);
+#endif
 weak_alias(dummy_0, __do_orphaned_stdio_locks);
 #ifdef __wasm__
 /* a new thread's blocks of every loaded module (the dynamic linker's; none in a static program) */
@@ -78,6 +85,9 @@ _Noreturn void __pthread_exit(void *result)
 	}
 
 	__pthread_tsd_run_dtors();
+#ifdef __wasm__
+	__wasm_fork_release(self);
+#endif
 	__block_app_sigs(&set);
 
 	/* This atomic potentially competes with a concurrent pthread_detach
