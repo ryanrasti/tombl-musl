@@ -216,7 +216,7 @@ static void (*fdbarrier(void *p))()
 #define fpaddr(p, v) fdbarrier((&(struct funcdesc){ \
 	laddr(p, v), (p)->got }))
 #elif DL_WASM
-#include "wasm32/dynlink.c"
+#include "wasm32/dynlink.h"
 #else
 #define laddr(p, v) (void *)((p)->base + (v))
 #define laddr_pg(p, v) laddr(p, v)
