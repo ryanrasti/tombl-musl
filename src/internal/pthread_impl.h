@@ -61,6 +61,10 @@ struct pthread {
 #ifdef __wasm__
 	/* its stack saved for fork (src/process/wasm32/fork_syscall.c), made as it first forks */
 	void *fork_buffer;
+	/* its coroutines' switches (src/ucontext/wasm32/ucontext.c) */
+	struct __ucontext *uc_next;
+	char *uc_stack;
+	unsigned char uc_switching, uc_rewinding, uc_finished;
 #endif
 
 	/* Part 3 -- the positions of these fields relative to
