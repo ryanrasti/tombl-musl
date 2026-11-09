@@ -7,7 +7,8 @@
 #endif
 
 #if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
-typedef long long greg_t, gregset_t[1];
+/* (a context's state for libc's coroutines: src/ucontext/wasm32/ucontext.c) */
+typedef long long greg_t, gregset_t[4];
 typedef struct _fpstate {} *fpregset_t;
 struct sigcontext {};
 typedef struct {
@@ -16,7 +17,7 @@ typedef struct {
 } mcontext_t;
 #else
 typedef struct {
-	unsigned long long __space[2];
+	unsigned long long __space[5];
 } mcontext_t;
 #endif
 

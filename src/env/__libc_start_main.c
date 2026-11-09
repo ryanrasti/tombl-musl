@@ -17,12 +17,20 @@ weak_alias(dummy1, __init_ssp);
 
 #define AUX_CNT 38
 
+#ifdef __wasm__
+/* where the main thread's stack began (near its top): pthread_getattr_np's */
+hidden uintptr_t __wasm_main_stack;
+#endif
+
 #ifdef __GNUC__
 __attribute__((__noinline__))
 #endif
 void __init_libc(char **envp, char *pn)
 {
 	size_t i, *auxv, aux[AUX_CNT] = { 0 };
+#ifdef __wasm__
+	__wasm_main_stack = (uintptr_t)__builtin_frame_address(0);
+#endif
 	__environ = envp;
 	for (i=0; envp[i]; i++);
 	libc.auxv = auxv = (void *)(envp+i+1);
