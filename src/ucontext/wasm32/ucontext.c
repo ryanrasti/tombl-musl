@@ -32,6 +32,20 @@
  * couldn't reach. A context switched to must have been made (makecontext)
  * or have switched away (swapcontext): one only got (getcontext) has no
  * frames saved to go back to, and switching to it fails (EINVAL).
+ *
+ * A signal handler runs on the stack of the context it interrupted, under
+ * the kernel's frames, which Asyncify can't save. So from a handler, a
+ * switch to a context made or saved (run on top) works, and so does one
+ * down to a context waiting above the handler's frames; one down past them,
+ * to a context waiting below the handler, fails (EINVAL), as does
+ * setcontext from a context run below it. That isn't supported: a
+ * preemptive scheduler's handler can't switch away from the thread it
+ * interrupted.
+ *
+ * setcontext from a context that's not the thread's own ends it: its frames
+ * are unwound, and dropped, down to the run that ran it, which runs the
+ * context switched to (so its stack can be freed). From the thread's own,
+ * at the bottom, its frames stay under the context switched to.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -74,6 +88,8 @@ struct context {
 	char *next, *end;	/* Asyncify's header: its saved frames, from its stack's bottom up */
 	char *stack;		/* its stack's bottom; 0, the thread's own, which is never saved */
 	int state;
+	int depth;		/* waiting: the signal handlers it's in (pthread's sig_depth) */
+	int base;		/* waiting: the handlers its frames start in (pthread's uc_base) */
 	void (*func)();
 	int argc;
 	int *args;		/* uc_link, then func's arguments, at its stack's top */
@@ -109,6 +125,8 @@ static __attribute__((noinline)) void start(ucontext_t *uc)
 	}
 	if (!link)
 		exit(0);
+	/* (as setcontext(link) would) */
+	__syscall(SYS_rt_sigprocmask, SIG_SETMASK, &link->uc_sigmask, 0, _NSIG / 8);
 	self = __pthread_self();
 	self->uc_next = link;
 	self->uc_finished = 1;
@@ -127,6 +145,7 @@ static __attribute__((noinline)) ucontext_t *run(ucontext_t *o, ucontext_t *t)
 	pthread_t self = __pthread_self();
 	struct context *c = CONTEXT(t);
 
+	self->uc_base = CONTEXT(o)->depth;
 	if (c->state == MADE || c->state == SAVED) {
 		self->uc_stack = c->stack;
 		set_sp(c->sp);
@@ -145,6 +164,7 @@ static __attribute__((noinline)) ucontext_t *run(ucontext_t *o, ucontext_t *t)
 	} else {
 		return 0;
 	}
+	self->uc_base = CONTEXT(o)->base;
 	self->uc_stack = CONTEXT(o)->stack;
 	set_sp(CONTEXT(o)->sp);
 	return self->uc_next;
@@ -168,8 +188,10 @@ static __attribute__((noinline)) void suspend(ucontext_t *o, ucontext_t *t)
 		asyncify_stop_rewind();
 		return;
 	}
-	/* (the thread's own context is at the bottom: no context to switch to is below it) */
-	if (!c->stack)
+	/* (the thread's own context is at the bottom: no context to switch to
+	 * is below it; and a switch past a signal handler's frames fails
+	 * before it gets here, but a return to uc_link can't) */
+	if (!c->stack || self->sig_depth > self->uc_base)
 		a_crash();
 	c->sp = get_sp();
 	c->next = c->stack;
@@ -212,19 +234,31 @@ void makecontext(ucontext_t *uc, void (*func)(), int argc, ...)
 	c->state = MADE;
 }
 
-int swapcontext(ucontext_t *restrict o, const ucontext_t *restrict uc)
+/* whether the running context can switch to t (not down past a signal handler's frames) */
+static int can_switch(pthread_t self, const ucontext_t *t)
 {
-	ucontext_t *t = (ucontext_t *)uc;
-	struct context *c = CONTEXT(o);
 	int state = CONTEXT(t)->state;
 
-	if (state != MADE && state != SAVED && state != WAITING) {
+	return state == MADE || state == SAVED ||
+	       (state == WAITING && self->sig_depth <= CONTEXT(t)->depth);
+}
+
+int swapcontext(ucontext_t *restrict o, const ucontext_t *restrict uc)
+{
+	pthread_t self = __pthread_self();
+	ucontext_t *t = (ucontext_t *)uc;
+	struct context *c = CONTEXT(o);
+	int state;
+
+	if (!can_switch(self, t)) {
 		errno = EINVAL;
 		return -1;
 	}
 	__syscall(SYS_rt_sigprocmask, SIG_SETMASK, &uc->uc_sigmask, &o->uc_sigmask, _NSIG / 8);
 	c->sp = get_sp();
-	c->stack = __pthread_self()->uc_stack;
+	c->stack = self->uc_stack;
+	c->depth = self->sig_depth;
+	c->base = self->uc_base;
 	c->state = WAITING;
 	while (t != o) {
 		state = CONTEXT(t)->state;
@@ -243,10 +277,22 @@ int swapcontext(ucontext_t *restrict o, const ucontext_t *restrict uc)
 
 int setcontext(const ucontext_t *uc)
 {
+	pthread_t self = __pthread_self();
 	/* the running context's, never switched to again */
 	ucontext_t left;
 
-	return swapcontext(&left, uc);
+	if (!self->uc_stack)
+		return swapcontext(&left, uc);
+	/* (its frames, unwound, mustn't go down past a signal handler's) */
+	if (!can_switch(self, uc) || self->sig_depth > self->uc_base) {
+		errno = EINVAL;
+		return -1;
+	}
+	__syscall(SYS_rt_sigprocmask, SIG_SETMASK, &uc->uc_sigmask, 0, _NSIG / 8);
+	/* unwound into its own stack, and never rewound */
+	CONTEXT(&left)->stack = self->uc_stack;
+	suspend(&left, (ucontext_t *)uc);
+	a_crash();
 }
 
 #endif

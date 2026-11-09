@@ -65,6 +65,9 @@ struct pthread {
 	struct __ucontext *uc_next;
 	char *uc_stack;
 	unsigned char uc_switching, uc_rewinding, uc_finished;
+	/* the signal handlers it's in, nested (src/signal/wasm32/restore.c),
+	 * and the handlers its running coroutine's frames start in */
+	int sig_depth, uc_base;
 #endif
 
 	/* Part 3 -- the positions of these fields relative to

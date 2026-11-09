@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <setjmp.h>
+#include "pthread_impl.h"
 
 // setjmp/longjmp on wasm are implemented with LLVM's Wasm SjLj lowering (the
 // WebAssemblyLowerEmscriptenEHSjLj pass, enabled by -mllvm -wasm-enable-sjlj).
@@ -15,11 +16,12 @@ struct __wasm_longjmp_args {
 };
 
 // Overlaid on the front of __jmp_buf, which is unsigned long long[6] (48 bytes,
-// 8-byte aligned) on wasm32, so this 16-byte struct fits with room to spare.
+// 8-byte aligned) on wasm32, so this 20-byte struct fits with room to spare.
 struct __jmp_buf_impl {
 	void *func_invocation_id;
 	uint32_t label;
 	struct __wasm_longjmp_args arg;
+	int sig_depth;
 };
 
 // Called by the pass at each setjmp() call site: record the setjmp label and
@@ -29,6 +31,7 @@ void __wasm_setjmp(void *env, uint32_t label, void *func_invocation_id)
 	struct __jmp_buf_impl *jb = env;
 	jb->func_invocation_id = func_invocation_id;
 	jb->label = label;
+	jb->sig_depth = __pthread_self()->sig_depth;
 }
 
 // Called by the pass in the longjmp catchpad: return the stored label if this
@@ -37,8 +40,12 @@ void __wasm_setjmp(void *env, uint32_t label, void *func_invocation_id)
 uint32_t __wasm_setjmp_test(void *env, void *func_invocation_id)
 {
 	struct __jmp_buf_impl *jb = env;
-	if (jb->func_invocation_id == func_invocation_id)
+	if (jb->func_invocation_id == func_invocation_id) {
+		/* (out of the signal handlers it was called in, for libc's
+		 * coroutines: src/signal/wasm32/restore.c) */
+		__pthread_self()->sig_depth = jb->sig_depth;
 		return jb->label;
+	}
 	return 0;
 }
 
