@@ -48,6 +48,12 @@ int __libc_sigaction(int sig, const struct sigaction *restrict sa, struct sigact
 #ifdef SA_RESTORER
 		ksa.flags |= SA_RESTORER;
 		ksa.restorer = (sa->sa_flags & SA_SIGINFO) ? __restore_rt : __restore;
+#ifdef __wasm__
+		/* (the kernel calls a restorer, as the handler's trampoline,
+		 * only for SA_SIGINFO: every handler through one,
+		 * src/signal/wasm32/restore.c) */
+		ksa.flags |= SA_SIGINFO;
+#endif
 #endif
 		memcpy(&ksa.mask, &sa->sa_mask, _NSIG/8);
 	}
@@ -55,6 +61,9 @@ int __libc_sigaction(int sig, const struct sigaction *restrict sa, struct sigact
 	if (old && !r) {
 		old->sa_handler = ksa_old.handler;
 		old->sa_flags = ksa_old.flags;
+#ifdef __wasm__
+		if (ksa_old.restorer == __restore) old->sa_flags &= ~SA_SIGINFO;
+#endif
 		memcpy(&old->sa_mask, &ksa_old.mask, _NSIG/8);
 	}
 	return __syscall_ret(r);

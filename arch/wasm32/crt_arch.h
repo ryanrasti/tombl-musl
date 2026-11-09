@@ -21,7 +21,11 @@ hidden void _dlstart_c(size_t *sp, size_t *dynv);
  * its own __table_base), which it runs; then mainline's stage 1.
  */
 __asm__(".globaltype __table_base, i32, immutable\n");
-void _dlstart(void)
+__asm__(".globaltype __stack_pointer, i32\n");
+/* the main thread's stack's top, exec's 1 MiB mapping's (all of it
+ * under this, the program's frames as well): pthread_getattr_np's */
+hidden uintptr_t __wasm_main_stack;
+static __attribute__((noinline)) void dlstart_args(uintptr_t top)
 {
 	char buf[65536 * 4] __attribute__((aligned(16)));
 	struct wasm_process_args *args = (void *)buf;
@@ -37,6 +41,8 @@ void _dlstart(void)
 	__asm__("global.get __table_base\nlocal.set %0" : "=r"(tb));
 	for (i=0; dynv[i]; i+=2) if (dynv[i] == 0x60005741) ((void (*)(void))(tb + dynv[i+1] - 0x80000000))();
 	for (i=0; dynv[i]; i+=2) if (dynv[i] == 0x60005742) ((void (*)(void))(tb + dynv[i+1] - 0x80000000))();
+	/* (its data now in place) */
+	__wasm_main_stack = top;
 	size_t sp[args->argc + n + na + 5];
 	sp[0] = args->argc;
 	for (i=0; i<(size_t)args->argc; i++) sp[1+i] = (size_t)args->argv[i];
@@ -45,6 +51,13 @@ void _dlstart(void)
 	sp[2+args->argc+n] = 0;
 	for (i=0; i<na+2; i++) sp[3+args->argc+n+i] = auxv[i];
 	_dlstart_c(sp, dynv);
+}
+/* (no frame of its own: its stack pointer is the stack's top, as exec set it) */
+void _dlstart(void)
+{
+	uintptr_t top;
+	__asm__("global.get __stack_pointer\nlocal.set %0" : "=r"(top));
+	dlstart_args(top);
 }
 #endif
 

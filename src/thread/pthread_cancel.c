@@ -107,8 +107,12 @@ static void init_cancellation()
 		/* No SA_RESTART: the handler can't leave a blocked syscall for
 		 * __cp_cancel, so the syscall must return (EINTR) for
 		 * __syscall_cp_c to act on the cancel, not restart and block
-		 * on. (Another syscall SIGCANCEL interrupts gets EINTR too: only
-		 * in a thread already cancelled, at its next cancellation point.) */
+		 * on. (Another blocking syscall SIGCANCEL interrupts gets EINTR
+		 * too: one not a cancellation point, in a thread with
+		 * cancellation enabled. pthread_cancel doesn't send it to a
+		 * thread with cancellation disabled, whose next cancellation
+		 * point acts on the cancel once it's enabled; only one disabling
+		 * it as the signal is sent can get EINTR.) */
 		.sa_flags = SA_SIGINFO | SA_ONSTACK,
 #else
 		.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK,
@@ -132,5 +136,10 @@ int pthread_cancel(pthread_t t)
 			pthread_exit(PTHREAD_CANCELED);
 		return 0;
 	}
+#ifdef __wasm__
+	/* (no SA_RESTART: init_cancellation's) */
+	if (t->canceldisable)
+		return 0;
+#endif
 	return pthread_kill(t, SIGCANCEL);
 }

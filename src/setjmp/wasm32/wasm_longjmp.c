@@ -18,6 +18,7 @@ struct __jmp_buf_impl {
 	void *func_invocation_id;
 	uint32_t label;
 	struct __wasm_longjmp_args arg;
+	int sig_depth;
 };
 
 // LLVM uses tag 1 (__c_longjmp) for the longjmp exception; the linker
