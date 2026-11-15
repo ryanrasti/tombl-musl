@@ -1,5 +1,5 @@
-	# a CLONE_VM child's start (the host's, on the child's stack): its start
-	# block (clone.c) is at the top of that stack
+	# a CLONE_VM child's start, on its stack, its start block (clone.c) at
+	# the top: the host calls it, from the block's first word
 	.globaltype __stack_pointer, i32
 	.functype __wasm_clone_main (i32) -> ()
 	.globl __wasm_clone_start

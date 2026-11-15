@@ -1,9 +1,11 @@
 /*
  * clone on wasm32: a wasm thread can't return from a syscall on a new
  * stack, so a CLONE_VM child (a thread) gets what it should run at the top
- * of its new stack, passed as the new stack pointer; the host starts it at
- * __wasm_clone_start (wasm_thread.s) there, which sets the stack and thread
- * pointers and runs it. Without CLONE_VM the kernel refuses (no copies of a
+ * of its new stack, passed as the new stack pointer. Its first word is where
+ * the child starts, as a native child returns into its libc's clone: this
+ * libc's __wasm_clone_start (wasm_thread.s), which the host calls with that
+ * stack, and which sets the stack and thread pointers and runs it (a module
+ * can link several programs, each with a libc of its own). Without CLONE_VM the kernel refuses (no copies of a
  * program's memory).
  */
 #define _GNU_SOURCE
@@ -13,7 +15,10 @@
 #include "pthread_impl.h"
 #include "syscall.h"
 
+void __wasm_clone_start(uintptr_t stack);
+
 struct clone_start {
+	void (*start)(uintptr_t stack);	/* first: the host calls it */
 	int (*func)(void *);
 	void *arg;
 	void *tls;
@@ -37,6 +42,7 @@ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
 	va_end(ap);
 
 	s = (void *)(((uintptr_t)stack - sizeof *s) & -16);
+	s->start = __wasm_clone_start;
 	s->func = func;
 	s->arg = arg;
 	s->tls = tls;
