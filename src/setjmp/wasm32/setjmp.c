@@ -9,6 +9,7 @@
  * the host's (lkl_wasi_throw: Asyncify, as a thread's suspend is).
  */
 #include <setjmp.h>
+#include "libc.h"
 #include <stdint.h>
 
 /* what a wrapper reports: 0, the buffer longjmped to, or 1 (an exception) */
@@ -49,12 +50,18 @@ void setTempRet0(int v)
 	temp_ret = v;
 }
 
-/* (the lowering's longjmp; it returns into the unwinding Asyncify started) */
-void emscripten_longjmp(uintptr_t env, int val)
+/* a longjmp: it returns into the unwinding Asyncify started */
+hidden void __wasm_longjmp_to(uintptr_t env, int val)
 {
 	__THREW__ = env;
 	__threwValue = val ? val : 1;
 	lkl_wasi_throw();
+}
+
+/* (the lowering's longjmp) */
+void emscripten_longjmp(uintptr_t env, int val)
+{
+	__wasm_longjmp_to(env, val);
 }
 
 /*
