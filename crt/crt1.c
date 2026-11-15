@@ -29,6 +29,18 @@ static int wasm_main(int argc, char **argv, char **envp)
 	return main(argc, argv, envp);
 }
 #define main wasm_main
+
+/*
+ * the constructors (wasm-ld's __wasm_call_ctors) as libc's init runs them,
+ * after the thread pointer is set; called here, the linker doesn't run them
+ * before each export instead (as the host's cabi_realloc, before _start)
+ */
+void __wasm_call_ctors(void);
+
+void _init(void)
+{
+	__wasm_call_ctors();
+}
 #endif
 
 hidden void _start_c(long *p)

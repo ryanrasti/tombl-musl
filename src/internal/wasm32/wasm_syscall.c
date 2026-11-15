@@ -100,22 +100,34 @@ static long mm_alloc(size_t len)
 	return p;
 }
 
-/* a file mapping is a copy of the file (none is written back: no MAP_SHARED writes) */
+/*
+ * a file mapping is a copy of the file (none is written back: no MAP_SHARED
+ * writes). MAP_FIXED maps over what the caller has mapped (as InnoDB commits
+ * what it reserved): the range zeroed, or the file copied in; it must be
+ * mapped memory, which no protection keeps out of reach.
+ */
 static long wasm_mmap(long addr, long len, long prot, long flags, long fd,
 		      long pgoff)
 {
 	long p, n;
 
-	if (flags & MAP_FIXED)
-		return -ENOMEM;
 	if (!(flags & MAP_ANONYMOUS) && (flags & MAP_SHARED) && (prot & PROT_WRITE))
 		return -ENODEV;
-	p = mm_alloc(len);
+	if (flags & MAP_FIXED) {
+		if (addr % MMAP_ALIGN || (uintptr_t)addr + len > mm_end ||
+		    (uintptr_t)addr + len < (uintptr_t)addr)
+			return -ENOMEM;
+		p = addr;
+		memset((void *)p, 0, len);
+	} else {
+		p = mm_alloc(len);
+	}
 	if (p < 0 || (flags & MAP_ANONYMOUS))
 		return p;	/* zeroed */
 	n = kernel(SYS_pread64, fd, p, len, __SYSCALL_LL_E((long long)pgoff * 4096), 0);
 	if (n < 0) {
-		mm_free(p, len);
+		if (!(flags & MAP_FIXED))
+			mm_free(p, len);
 		return n;
 	}
 	return p;
@@ -127,8 +139,13 @@ static long wasm_mremap(long old, long old_len, long new_len, long flags)
 
 	if (new_len <= old_len)
 		return old;
+	/*
+	 * (in place it can't grow: ENOMEM for memory that's there, EFAULT
+	 * past it, as for an unmapped range: musl's pthread_getattr_np finds
+	 * the main thread's stack so, from its top down to the first page)
+	 */
 	if (!(flags & MREMAP_MAYMOVE))
-		return -ENOMEM;
+		return (uintptr_t)old < MMAP_ALIGN || (uintptr_t)old + old_len > mm_end ? -EFAULT : -ENOMEM;
 	p = mm_alloc(new_len);
 	if (p >= 0) {
 		memcpy((void *)p, (void *)old, old_len);
