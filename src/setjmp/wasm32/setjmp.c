@@ -12,9 +12,12 @@
 #include "libc.h"
 #include <stdint.h>
 
-/* what a wrapper reports: 0, the buffer longjmped to, or 1 (an exception) */
-uintptr_t __THREW__;
-int __threwValue;
+/*
+ * what a wrapper reports: 0, the buffer longjmped to, or 1 (an exception);
+ * each thread's (the lowering's, in code with the atomics feature: arch.mak)
+ */
+_Thread_local uintptr_t __THREW__;
+_Thread_local int __threwValue;
 static int temp_ret;
 
 void lkl_wasi_throw(void);
