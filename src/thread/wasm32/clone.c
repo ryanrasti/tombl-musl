@@ -4,8 +4,8 @@
  * of its new stack, passed as the new stack pointer. Its first word is where
  * the child starts, as a native child returns into its libc's clone: this
  * libc's __wasm_clone_start (wasm_thread.s), which the host calls with that
- * stack, and which sets the stack and thread pointers and runs it (a module
- * can link several programs, each with a libc of its own). Without CLONE_VM the kernel refuses (no copies of a
+ * stack, and which sets the stack and thread pointers (its TLS's base too)
+ * and runs it (a module can link several programs, each with a libc of its own). Without CLONE_VM the kernel refuses (no copies of a
  * program's memory).
  */
 #define _GNU_SOURCE
@@ -54,10 +54,8 @@ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
 /* from __wasm_clone_start, on the child's stack */
 hidden _Noreturn void __wasm_clone_main(struct clone_start *s)
 {
-	extern uintptr_t __wasm_tp;
-
 	if (s->flags & CLONE_SETTLS)
-		__wasm_tp = (uintptr_t)s->tls;
+		__set_thread_area(s->tls);
 	int ret = s->func(s->arg);
 	for (;;)
 		__syscall(SYS_exit, ret);
