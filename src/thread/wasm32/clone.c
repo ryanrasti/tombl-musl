@@ -5,8 +5,8 @@
  * the child starts, as a native child returns into its libc's clone: this
  * libc's __wasm_clone_start (wasm_thread.s), which the host calls with that
  * stack, and which sets the stack and thread pointers (its TLS's base too)
- * and runs it (a module can link several programs, each with a libc of its own). Without CLONE_VM the kernel refuses (no copies of a
- * program's memory).
+ * and runs it (a module can link several programs, each with a libc of its
+ * own).
  */
 #define _GNU_SOURCE
 #include <sched.h>
@@ -40,6 +40,22 @@ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
 		ctid = va_arg(ap, pid_t *);
 	}
 	va_end(ap);
+
+	/*
+	 * Without CLONE_VM, a fork: the host resumes the child in its copy of
+	 * the memory, where the syscall returns 0, on its copy of this stack
+	 * (the stack given goes unused)
+	 */
+	if (!(flags & CLONE_VM)) {
+		int ret = __syscall(SYS_clone, flags, stack, ptid, ctid, tls);
+		if (ret)
+			return ret;
+		if (flags & CLONE_SETTLS)
+			__set_thread_area(tls);
+		ret = func(arg);
+		for (;;)
+			__syscall(SYS_exit, ret);
+	}
 
 	s = (void *)(((uintptr_t)stack - sizeof *s) & -16);
 	s->start = __wasm_clone_start;
