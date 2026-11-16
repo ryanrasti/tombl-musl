@@ -25,21 +25,19 @@ typedef struct __jmp_buf_tag {
  || defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) \
  || defined(_BSD_SOURCE)
 typedef jmp_buf sigjmp_buf;
+int sigsetjmp (sigjmp_buf, int) __setjmp_attr;
 #ifdef __wasm__
 int __wasm_sigsetjmp (sigjmp_buf, int, int);
 #define sigsetjmp(env, save) __wasm_sigsetjmp(env, save, setjmp(env))
-#else
-int sigsetjmp (sigjmp_buf, int) __setjmp_attr;
 #endif
 _Noreturn void siglongjmp (sigjmp_buf, int);
 #endif
 
 #if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) \
  || defined(_BSD_SOURCE)
-#ifdef __wasm__
-#define _setjmp setjmp
-#else
 int _setjmp (jmp_buf) __setjmp_attr;
+#ifdef __wasm__
+#define _setjmp(env) setjmp(env)
 #endif
 _Noreturn void _longjmp (jmp_buf, int);
 #endif
@@ -49,7 +47,9 @@ _Noreturn void longjmp (jmp_buf, int);
 
 /*
  * (wasm: setjmp is the compiler's, -mllvm -enable-emscripten-sjlj, which
- * lowers a call to it; the others are calls to it)
+ * lowers a call to it; the others' calls are calls to it. Their functions,
+ * an address's or a call the lowering didn't see, trap: no setjmp returns
+ * twice unlowered)
  */
 #define setjmp setjmp
 

@@ -16,3 +16,9 @@ int __wasm_sigsetjmp(sigjmp_buf env, int save, int ret)
 			  ret ? 0 : env->__ss, _NSIG/8);
 	return ret;
 }
+
+/* (its own function: as setjmp's, setjmp.c) */
+int (sigsetjmp)(sigjmp_buf env, int save)
+{
+	__builtin_trap();
+}

@@ -22,6 +22,20 @@ static int temp_ret;
 
 void lkl_wasi_throw(void);
 
+/*
+ * setjmp's and _setjmp's own functions (an address taken, or a call the
+ * lowering didn't see, which can't return twice): a trap
+ */
+int setjmp(jmp_buf env)
+{
+	__builtin_trap();
+}
+
+int (_setjmp)(jmp_buf env)
+{
+	__builtin_trap();
+}
+
 /* a buffer: the setjmp's invocation of its function, and its label there */
 struct jmp {
 	void *id;
