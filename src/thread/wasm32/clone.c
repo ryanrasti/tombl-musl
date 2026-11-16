@@ -34,7 +34,7 @@ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
 
 	/* callers pass these only with the flags that use them */
 	va_start(ap, arg);
-	if (flags & (CLONE_PARENT_SETTID | CLONE_SETTLS | CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)) {
+	if (flags & (CLONE_PARENT_SETTID | CLONE_PIDFD | CLONE_SETTLS | CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)) {
 		ptid = va_arg(ap, pid_t *);
 		tls = va_arg(ap, void *);
 		ctid = va_arg(ap, pid_t *);
