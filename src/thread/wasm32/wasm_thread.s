@@ -38,3 +38,25 @@ __wasm_set_tls_base:
 	local.get 0
 	global.set __tls_base
 	end_function
+
+	# the cancellation points' labels (syscall_cp.c): bytes of one object,
+	# in order, as a native syscall_cp.s's code; only their addresses count
+	.section .rodata.__cp_begin,"",@
+	.globl __cp_begin
+	.hidden __cp_begin
+	.type __cp_begin,@object
+__cp_begin:
+	.int8 0
+	.size __cp_begin, 1
+	.globl __cp_end
+	.hidden __cp_end
+	.type __cp_end,@object
+__cp_end:
+	.int8 0
+	.size __cp_end, 1
+	.globl __cp_cancel
+	.hidden __cp_cancel
+	.type __cp_cancel,@object
+__cp_cancel:
+	.int8 0
+	.size __cp_cancel, 1
