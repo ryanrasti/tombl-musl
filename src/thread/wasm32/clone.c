@@ -22,7 +22,6 @@ struct clone_start {
 	int (*func)(void *);
 	void *arg;
 	void *tls;
-	int flags;
 };
 
 int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
@@ -61,8 +60,8 @@ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
 	s->start = __wasm_clone_start;
 	s->func = func;
 	s->arg = arg;
-	s->tls = tls;
-	s->flags = flags;
+	/* (without CLONE_SETTLS, the parent's thread pointer, as natively) */
+	s->tls = flags & CLONE_SETTLS ? tls : (void *)__wasm_tp;
 	/* (the generic order: tls last) the child's frames go below s */
 	return __syscall(SYS_clone, flags, s, ptid, ctid, tls);
 }
@@ -70,8 +69,7 @@ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
 /* from __wasm_clone_start, on the child's stack */
 hidden _Noreturn void __wasm_clone_main(struct clone_start *s)
 {
-	if (s->flags & CLONE_SETTLS)
-		__set_thread_area(s->tls);
+	__set_thread_area(s->tls);
 	int ret = s->func(s->arg);
 	for (;;)
 		__syscall(SYS_exit, ret);
