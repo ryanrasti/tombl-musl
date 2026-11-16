@@ -18,7 +18,8 @@
  */
 _Thread_local uintptr_t __THREW__;
 _Thread_local int __threwValue;
-static int temp_ret;
+/* (the lowering's high word of a 64-bit result, each thread's too) */
+static _Thread_local int temp_ret;
 
 void lkl_wasi_throw(void);
 
