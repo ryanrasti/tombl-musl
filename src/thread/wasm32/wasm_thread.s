@@ -17,27 +17,11 @@ __wasm_clone_start:
 	# the running thread's: this libc's own, not the linker's (a blob's
 	# programs each have a libc of their own; the blob's link makes each
 	# program's TLS plain data, its image: scripts/wasm-localize.py's
-	# --tls), set with the thread pointer (__set_thread_area.c)
+	# --tls), set with the thread pointer (__set_thread_area.c; read and
+	# written inline: pthread_arch.h)
 	.globaltype __tls_base, i32
 	.globl __tls_base
 __tls_base:
-
-	.globl __wasm_get_tls_base
-	.hidden __wasm_get_tls_base
-	.type __wasm_get_tls_base,@function
-__wasm_get_tls_base:
-	.functype __wasm_get_tls_base () -> (i32)
-	global.get __tls_base
-	end_function
-
-	.globl __wasm_set_tls_base
-	.hidden __wasm_set_tls_base
-	.type __wasm_set_tls_base,@function
-__wasm_set_tls_base:
-	.functype __wasm_set_tls_base (i32) -> ()
-	local.get 0
-	global.set __tls_base
-	end_function
 
 	# the cancellation points' labels (syscall_cp.c): bytes of one object,
 	# in order, as a native syscall_cp.s's code; only their addresses count

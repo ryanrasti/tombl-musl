@@ -7,14 +7,11 @@
  * Memory is the kernel's too: mmap, brk and their relatives are its own.
  */
 #include <stdint.h>
+#include "pthread_impl.h"
 #include "syscall.h"
 
 long __lkl_syscall_regs(long n, long a, long b, long c, long d, long e, long f,
 			uintptr_t sp, uintptr_t tp, uintptr_t pc);
-
-extern uintptr_t __wasm_tp;
-hidden uintptr_t __wasm_get_tls_base(void);
-hidden void __wasm_set_tls_base(uintptr_t);
 
 hidden long __wasm_syscall_at(uintptr_t pc, long n, long a, long b, long c,
 			      long d, long e, long f)

@@ -6,11 +6,9 @@
  * handler, by this (a blob's program's, renamed: scripts/program.sh).
  */
 #include <stdint.h>
-#include "libc.h"
+#include "pthread_impl.h"
 
 uintptr_t __wasm_tp;
-
-hidden void __wasm_set_tls_base(uintptr_t);
 
 int __set_thread_area(void *p)
 {
