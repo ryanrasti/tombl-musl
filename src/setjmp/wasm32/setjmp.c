@@ -6,7 +6,7 @@
  * at link), which stops a longjmp's unwinding there and sets __THREW__; the
  * function then tests whether the buffer is one of its own setjmps
  * (__wasm_setjmp_test) and resumes there, or longjmps on. The unwinding is
- * the host's (lkl_wasi_throw: Asyncify, as a thread's suspend is).
+ * the host's (__wasm_sjlj_throw: Asyncify, as a thread's suspend is).
  */
 #include <setjmp.h>
 #include "libc.h"
@@ -21,7 +21,7 @@ _Thread_local int __threwValue;
 /* (the lowering's high word of a 64-bit result, each thread's too) */
 static _Thread_local int temp_ret;
 
-void lkl_wasi_throw(void);
+void __wasm_sjlj_throw(void);
 
 /*
  * setjmp's and _setjmp's own functions (an address taken, or a call the
@@ -73,7 +73,7 @@ hidden void __wasm_longjmp_to(uintptr_t env, int val)
 {
 	__THREW__ = env;
 	__threwValue = val ? val : 1;
-	lkl_wasi_throw();
+	__wasm_sjlj_throw();
 }
 
 /* (the lowering's longjmp) */

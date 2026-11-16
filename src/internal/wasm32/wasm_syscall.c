@@ -10,14 +10,14 @@
 #include "pthread_impl.h"
 #include "syscall.h"
 
-long __lkl_syscall_regs(long n, long a, long b, long c, long d, long e, long f,
-			uintptr_t sp, uintptr_t tp, uintptr_t pc);
+long __wasm_syscall_entry(long n, long a, long b, long c, long d, long e, long f,
+			  uintptr_t sp, uintptr_t tp, uintptr_t pc);
 
 hidden long __wasm_syscall_at(uintptr_t pc, long n, long a, long b, long c,
 			      long d, long e, long f)
 {
 	uintptr_t tp = __wasm_tp, tls = __wasm_get_tls_base();
-	long ret = __lkl_syscall_regs(n, a, b, c, d, e, f, 0, tp, pc);
+	long ret = __wasm_syscall_entry(n, a, b, c, d, e, f, 0, tp, pc);
 
 	__wasm_tp = tp;
 	__wasm_set_tls_base(tls);
