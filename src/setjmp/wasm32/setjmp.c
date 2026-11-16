@@ -85,14 +85,15 @@ void emscripten_longjmp(uintptr_t env, int val)
 /*
  * a C++ exception that unwinds past a function that calls setjmp: it
  * resumes the unwinding (the lowering's, compiling both). C++'s runtime's,
- * if linked; without it there are no exceptions, and these aren't called.
+ * if linked; without it there are no exceptions, and these aren't called:
+ * a trap if they are.
  */
 weak void *__cxa_find_matching_catch_2(void)
 {
-	return 0;
+	__builtin_trap();
 }
 
 weak void __resumeException(void *exception)
 {
-	lkl_wasi_throw();
+	__builtin_trap();
 }
