@@ -10,12 +10,26 @@
 
 uintptr_t __wasm_tp;
 
+/*
+ * a blob's shared libraries' TLS modules, after the program's
+ * (__init_tls.c), and the blob's setter of a library's base (its global)
+ */
+extern hidden struct tls_module __wasm_tls_mods[];
+extern hidden unsigned __wasm_tls_ids[], __wasm_tls_n;
+weak void __wasm_tls_module_base(unsigned id, uintptr_t base);
+
 int __set_thread_area(void *p)
 {
 	struct tls_module *m = libc.tls_head;
+	unsigned i;
 
 	__wasm_tp = (uintptr_t)p;
 	if (m)
 		__wasm_set_tls_base((uintptr_t)p + m->offset - (uintptr_t)m->image);
+	for (i = 0; i < __wasm_tls_n; i++) {
+		m = &__wasm_tls_mods[i];
+		__wasm_tls_module_base(__wasm_tls_ids[i],
+				       (uintptr_t)p + m->offset - (uintptr_t)m->image);
+	}
 	return 0;
 }

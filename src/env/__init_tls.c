@@ -36,6 +36,19 @@ static struct builtin_tls {
 
 static struct tls_module main_tls;
 
+#ifdef __wasm__
+/*
+ * A blob's shared libraries' thread-local data (wasm32: programs and
+ * libraries in one module, each library's code linked once): a TLS module
+ * each, given as more PT_TLS headers after the program's, their p_paddr the
+ * library's id; their bases set by __set_thread_area, by the blob's
+ * __wasm_tls_module_base
+ */
+#define WASM_TLS_MAX 32
+hidden struct tls_module __wasm_tls_mods[WASM_TLS_MAX];
+hidden unsigned __wasm_tls_ids[WASM_TLS_MAX], __wasm_tls_n;
+#endif
+
 void *__copy_tls(unsigned char *mem)
 {
 	pthread_t td;
@@ -93,6 +106,17 @@ static void static_init_tls(size_t *aux)
 			base = aux[AT_PHDR] - phdr->p_vaddr;
 		if (phdr->p_type == PT_DYNAMIC && _DYNAMIC)
 			base = (size_t)_DYNAMIC - phdr->p_vaddr;
+#ifdef __wasm__
+		if (phdr->p_type == PT_TLS && tls_phdr && __wasm_tls_n < WASM_TLS_MAX) {
+			struct tls_module *m = &__wasm_tls_mods[__wasm_tls_n];
+			m->image = (void *)(base + phdr->p_vaddr);
+			m->len = phdr->p_filesz;
+			m->size = phdr->p_memsz;
+			m->align = phdr->p_align ? phdr->p_align : 1;
+			__wasm_tls_ids[__wasm_tls_n++] = phdr->p_paddr;
+			continue;
+		}
+#endif
 		if (phdr->p_type == PT_TLS)
 			tls_phdr = phdr;
 		if (phdr->p_type == PT_GNU_STACK &&
@@ -129,6 +153,29 @@ static void static_init_tls(size_t *aux)
 #endif
 		+ main_tls.size + main_tls.align
 		+ MIN_TLS_ALIGN-1 & -MIN_TLS_ALIGN;
+
+#if defined(__wasm__) && defined(TLS_ABOVE_TP)
+	/* (the libraries' modules after the program's, each at its alignment) */
+	if (__wasm_tls_n) {
+		struct tls_module *prev = &main_tls;
+		size_t i;
+
+		libc.tls_head = &main_tls;
+		for (i=0; i<__wasm_tls_n; i++) {
+			struct tls_module *m = &__wasm_tls_mods[i];
+			m->size += (-m->size - (uintptr_t)m->image) & (m->align-1);
+			m->offset = prev->offset + prev->size;
+			m->offset += (-m->offset + (uintptr_t)m->image) & (m->align-1);
+			if (m->align > libc.tls_align) libc.tls_align = m->align;
+			prev->next = m;
+			prev = m;
+		}
+		libc.tls_cnt = 1 + __wasm_tls_n;
+		libc.tls_size = (1 + libc.tls_cnt)*sizeof(void *) + sizeof(struct pthread)
+			+ prev->offset + prev->size + libc.tls_align
+			+ MIN_TLS_ALIGN-1 & -MIN_TLS_ALIGN;
+	}
+#endif
 
 	if (libc.tls_size > sizeof builtin_tls) {
 #ifndef SYS_mmap2

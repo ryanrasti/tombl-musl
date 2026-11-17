@@ -12,6 +12,7 @@
 
 long __wasm_syscall_entry(long n, long a, long b, long c, long d, long e, long f,
 			  uintptr_t sp, uintptr_t tp, uintptr_t pc);
+extern hidden unsigned __wasm_tls_n;
 
 hidden long __wasm_syscall_at(uintptr_t pc, long n, long a, long b, long c,
 			      long d, long e, long f)
@@ -21,6 +22,9 @@ hidden long __wasm_syscall_at(uintptr_t pc, long n, long a, long b, long c,
 
 	__wasm_tp = tp;
 	__wasm_set_tls_base(tls);
+	/* (a blob's shared libraries' TLS bases too: __set_thread_area's) */
+	if (__wasm_tls_n)
+		__set_thread_area((void *)tp);
 	return ret;
 }
 
